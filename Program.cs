@@ -53,15 +53,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<ITicketRepository, EfTicketRepository>();
 builder.Services.AddScoped<IMessageRepository, EfMessageRepository>();
-builder.Services.AddScoped<ITransactionRepository, EfTransactionRepository>();
-builder.Services.AddScoped<IStatsCacheRepository, EfStatsCacheRepository>();   
+builder.Services.AddScoped<IStatsCacheRepository, EfStatsCacheRepository>();
 
 // ---------- Application Services ----------
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddScoped<ITransactionService, TransactionService>();   
 builder.Services.AddScoped<IFinancialStatsService, FinancialStatsService>();   
 
 // ---------- Rate Limiting ----------
@@ -140,7 +139,7 @@ app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-
+// ---------- Authentication & Authorization middleware ----------
 app.UseAuthentication();
 app.UseAuthorization();
 

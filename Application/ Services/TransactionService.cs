@@ -1,88 +1,117 @@
+using System.Globalization;
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.DTOs;
 using AvalWebBackend.Domain.Entities;
+using AvalWebBackend.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AvalWebBackend.Application.Services;
 
 public class TransactionService : ITransactionService
 {
-    private readonly ITransactionRepository _repository;
+    private readonly AppDbContext _context;
+    private readonly IStatsCacheRepository _cacheRepo;
+    private readonly ILogger<TransactionService> _logger;
 
-    public TransactionService(ITransactionRepository repository)
+    public TransactionService(
+        AppDbContext context,
+        IStatsCacheRepository cacheRepo,
+        ILogger<TransactionService> logger)
     {
-        _repository = repository;
+        _context = context;
+        _cacheRepo = cacheRepo;
+        _logger = logger;
     }
 
     public async Task<TransactionDto> AddAsync(CreateTransactionDto dto)
     {
-        
-        if (!string.IsNullOrEmpty(dto.IdempotencyKey))
+        var tx = MapToEntity(dto);
+
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            var all = await _repository.GetAllAsync();
-            var existing = all.FirstOrDefault(t => t.IdempotencyKey == dto.IdempotencyKey);
-            if (existing != null)
-            {
-                return MapToDto(existing);
-            }
+            _context.Transactions.Add(tx);
+            await _context.SaveChangesAsync();
+
+            UpdateCaches(tx);
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+            return MapToDto(tx);
         }
-
-        var tx = new Transaction
+        catch (Exception ex)
         {
-            Id = Guid.NewGuid().ToString(),
-            UserId = dto.UserId ?? string.Empty,
-            TicketId = dto.TicketId ?? string.Empty,
-            Type = dto.Type,
-            Amount = dto.Amount,
-            TransactionDate = dto.TransactionDate,
-            Source = dto.Source,
-            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
-            IdempotencyKey = dto.IdempotencyKey
-        };
-
-        await _repository.AddAsync(tx);
-        await _repository.SaveChangesAsync();
-
-        return MapToDto(tx);
+            _logger.LogError(ex, "Failed to add transaction");
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     public async Task<List<TransactionDto>> AddBatchAsync(IEnumerable<CreateTransactionDto> dtos)
     {
-        var allTransactions = await _repository.GetAllAsync();
         var results = new List<TransactionDto>();
 
-        foreach (var dto in dtos)
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            // Idempotency check
-            if (!string.IsNullOrEmpty(dto.IdempotencyKey) &&
-                allTransactions.Any(t => t.IdempotencyKey == dto.IdempotencyKey))
+            foreach (var dto in dtos)
             {
-               
-                continue;
+                // Idempotency check
+                if (!string.IsNullOrEmpty(dto.IdempotencyKey))
+                {
+                    var exists = await _context.Transactions
+                        .AnyAsync(t => t.IdempotencyKey == dto.IdempotencyKey);
+                    if (exists) continue;
+                }
+
+                var tx = MapToEntity(dto);
+                _context.Transactions.Add(tx);
+                results.Add(MapToDto(tx));
+
+                UpdateCaches(tx);
             }
 
-            var tx = new Transaction
-            {
-                Id = Guid.NewGuid().ToString(),
-                UserId = dto.UserId ?? string.Empty,
-                TicketId = dto.TicketId ?? string.Empty,
-                Type = dto.Type,
-                Amount = dto.Amount,
-                TransactionDate = dto.TransactionDate,
-                Source = dto.Source,
-                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
-                IdempotencyKey = dto.IdempotencyKey
-            };
-
-            await _repository.AddAsync(tx);
-            results.Add(MapToDto(tx));
-
-            
-            allTransactions.Add(tx);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Batch transaction failed");
+            await transaction.RollbackAsync();
+            throw;
         }
 
-        await _repository.SaveChangesAsync();
         return results;
     }
+
+    // ---------- Cache update helper ----------
+    private void UpdateCaches(Transaction tx)
+    {
+        if (!TryParsePersianDate(tx.TransactionDate, out var txDate))
+        {
+            _logger.LogWarning("Invalid transaction date: {Date}", tx.TransactionDate);
+            return;
+        }
+
+        _cacheRepo.UpsertDailyCache(tx, txDate);
+        _cacheRepo.UpsertWeeklyCache(tx, txDate);
+        _cacheRepo.UpsertMonthlyCache(tx, txDate);
+    }
+
+    // ---------- Mapping ----------
+    private static Transaction MapToEntity(CreateTransactionDto dto) => new()
+    {
+        Id = Guid.NewGuid().ToString(),
+        UserId = dto.UserId ?? string.Empty,
+        TicketId = dto.TicketId ?? string.Empty,
+        Type = dto.Type,
+        Amount = dto.Amount,
+        TransactionDate = dto.TransactionDate,
+        Source = dto.Source,
+        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
+        IdempotencyKey = dto.IdempotencyKey
+    };
 
     private static TransactionDto MapToDto(Transaction tx) => new()
     {
@@ -95,4 +124,22 @@ public class TransactionService : ITransactionService
         Source = tx.Source,
         CreatedAt = tx.CreatedAt
     };
+
+    private static bool TryParsePersianDate(string persianDate, out DateTime result)
+    {
+        result = default;
+        if (string.IsNullOrWhiteSpace(persianDate)) return false;
+        var parts = persianDate.Split('-');
+        if (parts.Length != 3) return false;
+        if (!int.TryParse(parts[0], out int year) ||
+            !int.TryParse(parts[1], out int month) ||
+            !int.TryParse(parts[2], out int day)) return false;
+        try
+        {
+            var pc = new PersianCalendar();
+            result = pc.ToDateTime(year, month, day, 0, 0, 0, 0);
+            return true;
+        }
+        catch { return false; }
+    }
 }
