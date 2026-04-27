@@ -49,7 +49,7 @@ public class TicketService : ITicketService
             Date = GetCurrentPersianDate(),
             Time = GetCurrentTime(),
             Status = "pending",
-            File = request.File
+            File = request.File != null ? JsonSerializer.Serialize(request.File) : null   // serialise object to JSON string
         };
 
         await _ticketRepository.AddAsync(ticket);
@@ -71,7 +71,7 @@ public class TicketService : ITicketService
         ticket.AdminResponse = request.AdminResponse;
 
         if (request.File != null)
-            ticket.File = request.File;
+            ticket.File = JsonSerializer.Serialize(request.File);   // serialise object to JSON string
 
         await _ticketRepository.UpdateAsync(ticket);
         await _ticketRepository.SaveChangesAsync();
@@ -92,17 +92,30 @@ public class TicketService : ITicketService
     public async Task<(byte[] fileBytes, string contentType, string fileName)> GetTicketFileAsync(string id)
     {
         var ticket = await _ticketRepository.GetByIdWithFileAsync(id);
-        if (ticket?.File == null)
+        if (string.IsNullOrEmpty(ticket?.File))
             throw new NotFoundException(nameof(Ticket), id);
 
-        var fileElement = (JsonElement)ticket.File;
-        if (fileElement.ValueKind != JsonValueKind.Object ||
-            !fileElement.TryGetProperty("data", out var dataElement) ||
-            !fileElement.TryGetProperty("name", out var nameElement) ||
-            !fileElement.TryGetProperty("type", out var typeElement))
+        // File is stored as a JSON string: {"name":"...","type":"...","data":"..."}
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(ticket.File);
+        }
+        catch
+        {
+            throw new BusinessRuleException("ساختار فایل نامعتبر است");
+        }
+
+        var root = document.RootElement;
+        if (!root.TryGetProperty("data", out var dataElement) ||
+            !root.TryGetProperty("name", out var nameElement) ||
+            !root.TryGetProperty("type", out var typeElement))
             throw new BusinessRuleException("ساختار فایل نامعتبر است");
 
         var base64WithPrefix = dataElement.GetString();
+        var fileName = nameElement.GetString();
+        var contentType = typeElement.GetString();
+
         if (string.IsNullOrEmpty(base64WithPrefix))
             throw new BusinessRuleException("داده فایل خالی است");
 
@@ -111,7 +124,7 @@ public class TicketService : ITicketService
             : base64WithPrefix;
 
         var fileBytes = Convert.FromBase64String(base64Data);
-        return (fileBytes, typeElement.GetString()!, nameElement.GetString()!);
+        return (fileBytes, contentType!, fileName!);
     }
 
     private string GetCurrentPersianDate()
@@ -147,6 +160,6 @@ public class TicketService : ITicketService
         Time = ticket.Time,
         Status = ticket.Status,
         AdminResponse = ticket.AdminResponse,
-        File = ticket.File
+        File = ticket.File      // ticket.File is a string? and TicketDto.File is also a string? – fine
     };
 }

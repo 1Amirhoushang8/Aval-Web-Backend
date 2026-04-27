@@ -1,39 +1,33 @@
-﻿using System.Globalization;
-using AvalWebBackend.Application.Common.Interfaces;
+﻿using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.DTOs;
 using AvalWebBackend.Domain.Entities;
-using AvalWebBackend.Application.Common.Helpers;
 
 namespace AvalWebBackend.Application.Services;
 
 public class FinancialStatsService : IFinancialStatsService
 {
-    private readonly ITransactionRepository _transactionRepository;
+    private readonly IStatsCacheRepository _cacheRepository;
     private readonly ILogger<FinancialStatsService> _logger;
 
-    // Inject today's date for testability (default to DateTime.Today)
-    private readonly DateTime _today;
-
     public FinancialStatsService(
-        ITransactionRepository transactionRepository,
-        ILogger<FinancialStatsService> logger,
-        DateTime? today = null)   
+        IStatsCacheRepository cacheRepository,
+        ILogger<FinancialStatsService> logger)
     {
-        _transactionRepository = transactionRepository;
+        _cacheRepository = cacheRepository;
         _logger = logger;
-        _today = today ?? DateTime.Today; // fallback to real today
     }
 
     public async Task<FinancialStatsDto> GetStatsAsync()
     {
         try
         {
-            var transactions = await _transactionRepository.GetAllAsync();
-            _logger.LogInformation("Total transactions loaded: {Count}", transactions.Count);
+            var dailyCache = await _cacheRepository.GetDailyStatsAsync();
+            var weeklyCache = await _cacheRepository.GetWeeklyStatsAsync();
+            var monthlyCache = await _cacheRepository.GetMonthlyStatsAsync();
 
-            var dayStats = BuildDayStats(transactions);
-            var weekStats = BuildWeekStats(transactions);
-            var monthStats = BuildMonthStats(transactions);
+            var dayStats = BuildDayStats(dailyCache);
+            var weekStats = BuildWeekStats(weeklyCache);
+            var monthStats = BuildMonthStats(monthlyCache);
 
             return new FinancialStatsDto
             {
@@ -44,54 +38,24 @@ public class FinancialStatsService : IFinancialStatsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to build financial stats");
+            _logger.LogError(ex, "Failed to build financial stats from cache");
             return GetEmptyStats();
         }
     }
 
-    // ---------- Factory for empty stats ----------
-    private FinancialStatsDto GetEmptyStats()
+    private ChartDataDto BuildDayStats(List<DailyStatsCache> cacheRows)
     {
         var persianDays = new[] { "شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه" };
-        var persianMonths = new[]
-        {
-            "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
-            "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
-        };
-        return new FinancialStatsDto
-        {
-            Day = new ChartDataDto { Labels = persianDays.ToList(), Requests = new long[7].ToList(), Payments = new long[7].ToList() },
-            Week = new ChartDataDto { Labels = new List<string> { "هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴" }, Requests = new long[4].ToList(), Payments = new long[4].ToList() },
-            Month = new ChartDataDto { Labels = persianMonths.ToList(), Requests = new long[12].ToList(), Payments = new long[12].ToList() }
-        };
-    }
-
-    // ---------- Day stats ----------
-    private ChartDataDto BuildDayStats(List<Transaction> transactions)
-    {
-        var persianDays = new[] { "شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه" };
-        var startOfWeek = PersianDateHelper.GetStartOfPersianWeek(_today);
-
         var requests = new long[7];
         var payments = new long[7];
 
-        foreach (var tx in transactions)
+        foreach (var row in cacheRows)
         {
-            if (!PersianDateHelper.TryParsePersianDate(tx.TransactionDate, out var txDate))
+            if (row.DayIndex >= 0 && row.DayIndex < 7)
             {
-                _logger.LogWarning("Failed to parse date: {Date}", tx.TransactionDate);
-                continue;
+                requests[row.DayIndex] = row.Requests;
+                payments[row.DayIndex] = row.Payments;
             }
-
-            if (txDate < startOfWeek || txDate > startOfWeek.AddDays(6))
-                continue;
-
-            int dayIndex = PersianDateHelper.GetPersianDayIndex(txDate);
-
-            if (tx.Type == "request")
-                requests[dayIndex] += tx.Amount;
-            else if (tx.Type == "payment")
-                payments[dayIndex] += tx.Amount;
         }
 
         return new ChartDataDto
@@ -102,31 +66,24 @@ public class FinancialStatsService : IFinancialStatsService
         };
     }
 
-    // ---------- Week stats ----------
-    private ChartDataDto BuildWeekStats(List<Transaction> transactions)
+    private ChartDataDto BuildWeekStats(List<WeeklyStatsCache> cacheRows)
     {
         var labels = new List<string>();
         var requests = new List<long>();
         var payments = new List<long>();
 
-        for (int i = 3; i >= 0; i--)
+        foreach (var row in cacheRows.OrderBy(r => r.WeekPosition))
         {
-            var weekStart = PersianDateHelper.GetStartOfPersianWeek(_today.AddDays(-7 * i));
-            var weekEnd = weekStart.AddDays(6);
-            labels.Add($"هفته {4 - i}");
+            labels.Add(row.WeekLabel);
+            requests.Add(row.Requests);
+            payments.Add(row.Payments);
+        }
 
-            long weekRequests = 0, weekPayments = 0;
-            foreach (var tx in transactions)
-            {
-                if (PersianDateHelper.TryParsePersianDate(tx.TransactionDate, out var txDate) &&
-                    txDate >= weekStart && txDate <= weekEnd)
-                {
-                    if (tx.Type == "request") weekRequests += tx.Amount;
-                    else if (tx.Type == "payment") weekPayments += tx.Amount;
-                }
-            }
-            requests.Add(weekRequests);
-            payments.Add(weekPayments);
+        if (labels.Count == 0)
+        {
+            labels = new List<string> { "هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴" };
+            requests = new List<long> { 0, 0, 0, 0 };
+            payments = new List<long> { 0, 0, 0, 0 };
         }
 
         return new ChartDataDto
@@ -137,8 +94,7 @@ public class FinancialStatsService : IFinancialStatsService
         };
     }
 
-    // ---------- Month stats ----------
-    private ChartDataDto BuildMonthStats(List<Transaction> transactions)
+    private ChartDataDto BuildMonthStats(List<MonthlyStatsCache> cacheRows)
     {
         var persianMonths = new[]
         {
@@ -148,22 +104,13 @@ public class FinancialStatsService : IFinancialStatsService
         var requests = new long[12];
         var payments = new long[12];
 
-        var pc = new PersianCalendar();
-        var currentYear = pc.GetYear(_today);
-
-        foreach (var tx in transactions)
+        foreach (var row in cacheRows)
         {
-            if (!PersianDateHelper.TryParsePersianDate(tx.TransactionDate, out var txDate))
-                continue;
-
-            if (pc.GetYear(txDate) != currentYear)
-                continue;
-
-            int month = pc.GetMonth(txDate) - 1;
-            if (tx.Type == "request")
-                requests[month] += tx.Amount;
-            else if (tx.Type == "payment")
-                payments[month] += tx.Amount;
+            if (row.MonthIndex >= 0 && row.MonthIndex < 12)
+            {
+                requests[row.MonthIndex] = row.Requests;
+                payments[row.MonthIndex] = row.Payments;
+            }
         }
 
         return new ChartDataDto
@@ -171,6 +118,22 @@ public class FinancialStatsService : IFinancialStatsService
             Labels = persianMonths.ToList(),
             Requests = requests.ToList(),
             Payments = payments.ToList()
+        };
+    }
+
+    private FinancialStatsDto GetEmptyStats()
+    {
+        var persianDays = new[] { "شنبه", "یکشنبه", "دنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه" };
+        var persianMonths = new[]
+        {
+            "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+            "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
+        };
+        return new FinancialStatsDto
+        {
+            Day = new ChartDataDto { Labels = persianDays.ToList(), Requests = new long[7].ToList(), Payments = new long[7].ToList() },
+            Week = new ChartDataDto { Labels = new List<string> { "هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴" }, Requests = new long[4].ToList(), Payments = new long[4].ToList() },
+            Month = new ChartDataDto { Labels = persianMonths.ToList(), Requests = new long[12].ToList(), Payments = new long[12].ToList() }
         };
     }
 }

@@ -11,5 +11,5 @@ public class Ticket
     public string Time { get; set; } = string.Empty;
     public string Status { get; set; } = "pending";
     public string? AdminResponse { get; set; }
-    public object? File { get; set; }
+    public string? File { get; set; }            
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using AvalWebBackend.Infrastructure.Persistence;
 using AvalWebBackend.Application.Services;
 using AvalWebBackend.Application.Common.Interfaces;
@@ -42,27 +43,26 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-
 builder.Services.AddOpenApi();
 
-builder.Services.AddSingleton<JsonDataService>();
+// ---------- Database (SQLite) ----------
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite("Data Source=Infrastructure/avaldb.db;Foreign Keys=True"));
 
-builder.Services.AddScoped<IUserRepository, JsonUserRepository>();
-builder.Services.AddScoped<ITicketRepository, JsonTicketRepository>();
-builder.Services.AddScoped<IMessageRepository, JsonMessageRepository>();
-builder.Services.AddScoped<ITransactionRepository, JsonTransactionRepository>();
+// ---------- Repositories (EF Core) ----------
+builder.Services.AddScoped<IUserRepository, EfUserRepository>();
+builder.Services.AddScoped<ITicketRepository, EfTicketRepository>();
+builder.Services.AddScoped<IMessageRepository, EfMessageRepository>();
+builder.Services.AddScoped<ITransactionRepository, EfTransactionRepository>();
+builder.Services.AddScoped<IStatsCacheRepository, EfStatsCacheRepository>();   
 
+// ---------- Application Services ----------
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
-builder.Services.AddScoped<IFinancialStatsService>(provider =>
-{
-    var repo = provider.GetRequiredService<ITransactionRepository>();
-    var logger = provider.GetRequiredService<ILogger<FinancialStatsService>>();
-    return new FinancialStatsService(repo, logger, DateTime.Today);
-});
+builder.Services.AddScoped<IFinancialStatsService, FinancialStatsService>();   
 
 // ---------- Rate Limiting ----------
 builder.Services.AddRateLimiter(options =>

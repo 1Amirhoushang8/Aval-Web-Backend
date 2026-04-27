@@ -12,5 +12,5 @@ public class TicketDto
     public string Status { get; set; } = string.Empty;
     public string? AdminResponse { get; set; }
 
-    public object? File { get; set; }
+    public string? File { get; set; }
 }

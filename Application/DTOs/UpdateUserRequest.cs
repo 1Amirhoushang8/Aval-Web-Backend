@@ -1,5 +1,6 @@
-﻿namespace AvalWebBackend.Application.DTOs;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace AvalWebBackend.Application.DTOs;
 
 public class UpdateUserRequest
 {
