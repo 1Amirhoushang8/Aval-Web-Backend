@@ -1,9 +1,11 @@
+using System;
 using System.Globalization;
 
 namespace AvalWebBackend.Application.Common.Helpers;
 
 public static class PersianDateHelper
 {
+   
     public static bool TryParsePersianDate(string persianDate, out DateTime result)
     {
         result = default;
@@ -30,16 +32,27 @@ public static class PersianDateHelper
         }
     }
 
-    public static DateTime GetStartOfPersianWeek(DateTime date)
-    {
-        var pc = new PersianCalendar();
-        int dayOfWeek = (int)pc.GetDayOfWeek(date); // 0 = Saturday
-        return date.AddDays(-dayOfWeek).Date;
-    }
-
+    
     public static int GetPersianDayIndex(DateTime date)
     {
-        var pc = new PersianCalendar();
-        return (int)pc.GetDayOfWeek(date); // 0 = Saturday
+        
+        return date.DayOfWeek switch
+        {
+            DayOfWeek.Saturday => 0,
+            DayOfWeek.Sunday => 1,
+            DayOfWeek.Monday => 2,
+            DayOfWeek.Tuesday => 3,
+            DayOfWeek.Wednesday => 4,
+            DayOfWeek.Thursday => 5,
+            DayOfWeek.Friday => 6,
+            _ => 0
+        };
+    }
+
+    
+    public static DateTime GetStartOfPersianWeek(DateTime date)
+    {
+        int dayIndex = GetPersianDayIndex(date);
+        return date.AddDays(-dayIndex).Date;
     }
 }

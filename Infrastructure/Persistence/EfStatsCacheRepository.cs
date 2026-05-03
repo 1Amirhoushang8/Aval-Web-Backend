@@ -11,7 +11,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
     private readonly AppDbContext _context;
     private readonly ILogger<EfStatsCacheRepository> _logger;
 
-    // Persian day names (0 = Saturday)
+     
     private static readonly string[] PersianDayNames = { "شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه" };
     private static readonly string[] PersianMonthNames = { "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند" };
 
@@ -29,7 +29,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
     public async Task<List<MonthlyStatsCache>> GetMonthlyStatsAsync() =>
         await _context.MonthlyStatsCache.OrderBy(m => m.MonthIndex).ToListAsync();
 
-    // ---------- Upsert daily (propagates to week and month) ----------
+    // ---------- Upsert daily  ----------
     public void UpsertDailyCache(Transaction transaction, DateTime txDate)
     {
         int dayIndex = PersianDateHelper.GetPersianDayIndex(txDate);
@@ -53,17 +53,16 @@ public class EfStatsCacheRepository : IStatsCacheRepository
             row.Payments += transaction.Amount;
         row.UpdatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
-        // Update the weekly total for the current week (= position 4)
-        UpdateWeeklyTotal();
-        // Update the monthly total for the current month
-        UpdateMonthlyTotal(txDate);
+        
+        UpdateWeeklyForDate(txDate);
+        UpdateMonthlyForDate(txDate);
     }
 
-    // These are here for interface compatibility but are now handled automatically.
+    
     public void UpsertWeeklyCache(Transaction transaction, DateTime txDate) { }
     public void UpsertMonthlyCache(Transaction transaction, DateTime txDate) { }
 
-    // ---------- Archiving + reset when a new Persian week starts ----------
+    
     public async Task ArchiveAndResetIfNewPeriodAsync(DateTime txDate)
     {
         var pc = new System.Globalization.PersianCalendar();
@@ -78,7 +77,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
         {
             _logger.LogInformation("New Persian week detected (starts {Start}) – archiving previous week", currentWeekStartStr);
 
-            // 1. Archive old daily data into WeeklyArchives
+            
             var oldDaily = await _context.DailyStatsCache.ToListAsync();
             if (oldDaily.Any())
             {
@@ -95,7 +94,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
                 });
             }
 
-            // 2. Clear daily cache and insert 7 fresh zero rows for the new week
+            
             _context.DailyStatsCache.RemoveRange(oldDaily);
             for (int i = 0; i < 7; i++)
             {
@@ -110,23 +109,20 @@ public class EfStatsCacheRepository : IStatsCacheRepository
                 });
             }
 
-            // 3. Shift weekly cache positions and update labels
+            
             var weeks = await _context.WeeklyStatsCache.OrderBy(w => w.WeekPosition).ToListAsync();
 
-            // Remove the oldest week (position 1) – it will be physically deleted (no archive of weekly row needed here because we already archived daily totals above)
             var oldestWeek = weeks.FirstOrDefault(w => w.WeekPosition == 1);
             if (oldestWeek != null)
             {
                 _context.WeeklyStatsCache.Remove(oldestWeek);
             }
 
-            // Shift remaining weeks: position 2 → 1, position 3 → 2, position 4 → 3
             foreach (var w in weeks.Where(w => w.WeekPosition > 1))
             {
                 w.WeekPosition--;
             }
 
-            // Update labels to reflect new relative positions
             var updatedWeeks = weeks.Where(w => w.WeekPosition >= 1 && w.WeekPosition <= 3).ToList();
             string[] relativeLabels = { "سه هفته پیش", "دو هفته پیش", "یک هفته پیش" };
             for (int i = 0; i < 3; i++)
@@ -135,7 +131,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
                 if (week != null) week.WeekLabel = relativeLabels[i];
             }
 
-            // 4. Insert fresh week 4 (current week) with label "این هفته"
+            
             _context.WeeklyStatsCache.Add(new WeeklyStatsCache
             {
                 WeekPosition = 4,
@@ -149,7 +145,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
 
         // ---- Monthly reset ----
         int year = pc.GetYear(txDate);
-        int month = pc.GetMonth(txDate);   // 1..12
+        int month = pc.GetMonth(txDate);  
         bool monthExists = await _context.MonthlyStatsCache
             .AnyAsync(m => m.Year == year && m.MonthIndex == month - 1);
 
@@ -157,7 +153,6 @@ public class EfStatsCacheRepository : IStatsCacheRepository
         {
             _logger.LogInformation("New Persian month detected ({Year}/{Month}) – resetting monthly cache", year, month);
 
-            // Archive all old monthly rows
             var oldMonths = await _context.MonthlyStatsCache.ToListAsync();
             foreach (var old in oldMonths)
             {
@@ -173,7 +168,6 @@ public class EfStatsCacheRepository : IStatsCacheRepository
             }
             _context.MonthlyStatsCache.RemoveRange(oldMonths);
 
-            // Create 12 fresh months for the new year (or current year) with Persian month names
             for (int i = 0; i < 12; i++)
             {
                 _context.MonthlyStatsCache.Add(new MonthlyStatsCache
@@ -192,27 +186,61 @@ public class EfStatsCacheRepository : IStatsCacheRepository
     }
 
     // ---------- Private helpers ----------
-    private void UpdateWeeklyTotal()
+
+    
+    private void UpdateWeeklyForDate(DateTime txDate)
     {
-        var weekRow = _context.WeeklyStatsCache.FirstOrDefault(w => w.WeekPosition == 4);
+        var today = DateTime.Today;
+        int weekPos = GetWeekPosition(txDate, today);
+        if (weekPos < 1 || weekPos > 4) return;
+
+        var weekRow = _context.WeeklyStatsCache.FirstOrDefault(w => w.WeekPosition == weekPos);
         if (weekRow == null) return;
+
         var daily = _context.DailyStatsCache.ToList();
-        weekRow.Requests = daily.Sum(d => d.Requests);
-        weekRow.Payments = daily.Sum(d => d.Payments);
+        var startOfWeek = PersianDateHelper.GetStartOfPersianWeek(txDate);
+        var endOfWeek = startOfWeek.AddDays(6);
+        var relevantDaily = daily.Where(d =>
+        {
+            if (!PersianDateHelper.TryParsePersianDate(d.Date, out var dt))
+                return false;
+            return dt >= startOfWeek && dt <= endOfWeek;
+        }).ToList();
+
+        weekRow.Requests = relevantDaily.Sum(d => d.Requests);
+        weekRow.Payments = relevantDaily.Sum(d => d.Payments);
         weekRow.UpdatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
-    private void UpdateMonthlyTotal(DateTime txDate)
+    
+    private void UpdateMonthlyForDate(DateTime txDate)
     {
         var pc = new System.Globalization.PersianCalendar();
         int year = pc.GetYear(txDate);
         int monthIdx = pc.GetMonth(txDate) - 1;
         var monthRow = _context.MonthlyStatsCache.FirstOrDefault(m => m.Year == year && m.MonthIndex == monthIdx);
         if (monthRow == null) return;
+
         var daily = _context.DailyStatsCache.ToList();
-        monthRow.Requests = daily.Sum(d => d.Requests);
-        monthRow.Payments = daily.Sum(d => d.Payments);
+        var relevantDaily = daily.Where(d =>
+        {
+            if (!PersianDateHelper.TryParsePersianDate(d.Date, out var dt))
+                return false;
+            return pc.GetYear(dt) == year && pc.GetMonth(dt) == monthIdx + 1;
+        }).ToList();
+
+        monthRow.Requests = relevantDaily.Sum(d => d.Requests);
+        monthRow.Payments = relevantDaily.Sum(d => d.Payments);
         monthRow.UpdatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+
+    private static int GetWeekPosition(DateTime txDate, DateTime today)
+    {
+        var startOfTxWeek = PersianDateHelper.GetStartOfPersianWeek(txDate);
+        var startOfThisWeek = PersianDateHelper.GetStartOfPersianWeek(today);
+        int diffWeeks = (int)(startOfThisWeek - startOfTxWeek).TotalDays / 7;
+        return 4 - diffWeeks;
     }
 
     private static string ToPersianDateString(DateTime date)
