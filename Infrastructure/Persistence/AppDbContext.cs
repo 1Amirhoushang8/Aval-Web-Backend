@@ -79,15 +79,7 @@ public class AppDbContext : DbContext
             e.Property(t => t.TransactionDate).IsRequired();
             e.HasIndex(t => t.Type).HasDatabaseName("idx_transactions_type");
             e.HasIndex(t => t.TransactionDate).HasDatabaseName("idx_transactions_date");
-            // Foreign keys 
-            e.HasOne<User>()
-             .WithMany()
-             .HasForeignKey(t => t.UserId)
-             .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne<Ticket>()
-             .WithMany()
-             .HasForeignKey(t => t.TicketId)
-             .OnDelete(DeleteBehavior.SetNull);
+            
         });
 
         // ---------- Stats Cache tables  ----------

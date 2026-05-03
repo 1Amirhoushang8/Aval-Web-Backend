@@ -28,22 +28,25 @@ public class TransactionService : ITransactionService
     {
         var tx = MapToEntity(dto);
 
-        using var transaction = await _context.Database.BeginTransactionAsync();
+        using var dbTransaction = await _context.Database.BeginTransactionAsync();
         try
         {
+            if (TryParsePersianDate(dto.TransactionDate, out var txDate))
+                await _cacheRepo.ArchiveAndResetIfNewPeriodAsync(txDate);
+
             _context.Transactions.Add(tx);
             await _context.SaveChangesAsync();
 
             UpdateCaches(tx);
             await _context.SaveChangesAsync();
 
-            await transaction.CommitAsync();
+            await dbTransaction.CommitAsync();
             return MapToDto(tx);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to add transaction");
-            await transaction.RollbackAsync();
+            await dbTransaction.RollbackAsync();
             throw;
         }
     }
@@ -52,12 +55,15 @@ public class TransactionService : ITransactionService
     {
         var results = new List<TransactionDto>();
 
-        using var transaction = await _context.Database.BeginTransactionAsync();
+        using var dbTransaction = await _context.Database.BeginTransactionAsync();
         try
         {
+            var firstDto = dtos.FirstOrDefault();
+            if (firstDto != null && TryParsePersianDate(firstDto.TransactionDate, out var firstTxDate))
+                await _cacheRepo.ArchiveAndResetIfNewPeriodAsync(firstTxDate);
+
             foreach (var dto in dtos)
             {
-                // Idempotency check
                 if (!string.IsNullOrEmpty(dto.IdempotencyKey))
                 {
                     var exists = await _context.Transactions
@@ -73,19 +79,18 @@ public class TransactionService : ITransactionService
             }
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await dbTransaction.CommitAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Batch transaction failed");
-            await transaction.RollbackAsync();
+            await dbTransaction.RollbackAsync();
             throw;
         }
 
         return results;
     }
 
-    // ---------- Cache update helper ----------
     private void UpdateCaches(Transaction tx)
     {
         if (!TryParsePersianDate(tx.TransactionDate, out var txDate))
@@ -99,12 +104,9 @@ public class TransactionService : ITransactionService
         _cacheRepo.UpsertMonthlyCache(tx, txDate);
     }
 
-    // ---------- Mapping ----------
     private static Transaction MapToEntity(CreateTransactionDto dto) => new()
     {
         Id = Guid.NewGuid().ToString(),
-        UserId = dto.UserId ?? string.Empty,
-        TicketId = dto.TicketId ?? string.Empty,
         Type = dto.Type,
         Amount = dto.Amount,
         TransactionDate = dto.TransactionDate,
@@ -116,8 +118,6 @@ public class TransactionService : ITransactionService
     private static TransactionDto MapToDto(Transaction tx) => new()
     {
         Id = tx.Id,
-        UserId = tx.UserId,
-        TicketId = tx.TicketId,
         Type = tx.Type,
         Amount = tx.Amount,
         TransactionDate = tx.TransactionDate,

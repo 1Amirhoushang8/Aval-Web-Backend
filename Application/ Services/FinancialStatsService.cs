@@ -123,7 +123,7 @@ public class FinancialStatsService : IFinancialStatsService
 
     private FinancialStatsDto GetEmptyStats()
     {
-        var persianDays = new[] { "شنبه", "یکشنبه", "دنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه" };
+        var persianDays = new[] { "شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه" };
         var persianMonths = new[]
         {
             "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
@@ -131,9 +131,24 @@ public class FinancialStatsService : IFinancialStatsService
         };
         return new FinancialStatsDto
         {
-            Day = new ChartDataDto { Labels = persianDays.ToList(), Requests = new long[7].ToList(), Payments = new long[7].ToList() },
-            Week = new ChartDataDto { Labels = new List<string> { "هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴" }, Requests = new long[4].ToList(), Payments = new long[4].ToList() },
-            Month = new ChartDataDto { Labels = persianMonths.ToList(), Requests = new long[12].ToList(), Payments = new long[12].ToList() }
+            Day = new ChartDataDto
+            {
+                Labels = persianDays.ToList(),
+                Requests = new long[7].ToList(),
+                Payments = new long[7].ToList()
+            },
+            Week = new ChartDataDto
+            {
+                Labels = new List<string> { "هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴" },
+                Requests = new long[4].ToList(),
+                Payments = new long[4].ToList()
+            },
+            Month = new ChartDataDto
+            {
+                Labels = persianMonths.ToList(),
+                Requests = new long[12].ToList(),
+                Payments = new long[12].ToList()
+            }
         };
     }
 }

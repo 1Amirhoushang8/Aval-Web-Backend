@@ -28,13 +28,24 @@ public class GlobalExceptionMiddleware
         {
             _logger.LogError(ex, "Unhandled exception occurred");
 
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-            context.Response.ContentType = "application/json; charset=utf-8";
+            var isDevelopment = string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
 
+            
             var response = new
             {
-                message = "خطای داخلی سرور رخ داد. لطفاً دوباره تلاش کنید."
+                message = isDevelopment
+                    ? ex.Message
+                    : "خطای داخلی سرور رخ داد. لطفاً دوباره تلاش کنید.",
+                detail = isDevelopment
+                    ? ex.StackTrace
+                    : null
             };
+
+            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            context.Response.ContentType = "application/json; charset=utf-8";
 
             var json = JsonSerializer.Serialize(response);
             await context.Response.WriteAsync(json);

@@ -19,6 +19,10 @@ public class ApiKeyAttribute : Attribute, IAsyncActionFilter
         var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var configuredApiKey = configuration.GetValue<string>("ExternalApiKey");
 
+
+        Console.WriteLine($"DEBUG Expected: '{configuredApiKey}' Received: '{extractedApiKey}'");
+
+
         if (string.IsNullOrEmpty(configuredApiKey) || !configuredApiKey.Equals(extractedApiKey))
         {
             context.Result = new UnauthorizedObjectResult(new { message = "Invalid API key" });

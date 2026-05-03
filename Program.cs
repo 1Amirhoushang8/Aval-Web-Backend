@@ -42,10 +42,10 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
-
 builder.Services.AddOpenApi();
 
 // ---------- Database (SQLite) ----------
+Console.WriteLine("!!! DB PATH: " + Path.GetFullPath("Infrastructure/avaldb.db"));
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=Infrastructure/avaldb.db;Foreign Keys=True"));
 
@@ -60,8 +60,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<ITransactionService, TransactionService>();   
-builder.Services.AddScoped<IFinancialStatsService, FinancialStatsService>();   
+builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddScoped<IFinancialStatsService, FinancialStatsService>();
 
 // ---------- Rate Limiting ----------
 builder.Services.AddRateLimiter(options =>
@@ -71,78 +71,56 @@ builder.Services.AddRateLimiter(options =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/json";
-        var json = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            message = "Too many requests. Please try again later."
-        });
+        var json = System.Text.Json.JsonSerializer.Serialize(new { message = "Too many requests. Please try again later." });
         await context.HttpContext.Response.WriteAsync(json, cancellationToken);
     };
-
     options.AddFixedWindowLimiter("LoginPolicy", config =>
     {
-        config.PermitLimit = 5;
-        config.Window = TimeSpan.FromMinutes(1);
+        config.PermitLimit = 5; config.Window = TimeSpan.FromMinutes(1);
         config.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
-
     options.AddFixedWindowLimiter("BatchPolicy", config =>
     {
-        config.PermitLimit = 10;
-        config.Window = TimeSpan.FromMinutes(1);
+        config.PermitLimit = 10; config.Window = TimeSpan.FromMinutes(1);
         config.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
-
     options.AddFixedWindowLimiter("RegisterPolicy", config =>
     {
-        config.PermitLimit = 3;
-        config.Window = TimeSpan.FromMinutes(1);
+        config.PermitLimit = 3; config.Window = TimeSpan.FromMinutes(1);
         config.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
 });
 
 // ---------- Request Size Limit ----------
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024;
-});
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 10 * 1024 * 1024);
 
-builder.Services.AddControllers(options =>
-{
-    options.Filters.Add<DomainExceptionFilter>();
-});
+builder.Services.AddControllers(options => options.Filters.Add<DomainExceptionFilter>());
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173", "http://localhost:5175")
               .AllowAnyMethod()
               .AllowAnyHeader());
 });
 
 var app = builder.Build();
 
+app.UseRouting();
 app.UseCors("AllowReact");
-
 app.UseMiddleware<GlobalExceptionMiddleware>();
-
 app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
-
-// ---------- Authentication & Authorization middleware ----------
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
+
+

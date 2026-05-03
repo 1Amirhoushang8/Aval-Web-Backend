@@ -18,10 +18,5 @@ public class CreateTransactionDto
 
     public string? Source { get; set; }
 
-    
-    public string? UserId { get; set; }
-    public string? TicketId { get; set; }
-
-    
     public string? IdempotencyKey { get; set; }
 }
