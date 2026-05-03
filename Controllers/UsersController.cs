@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;   
+using Microsoft.AspNetCore.Authorization;
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.DTOs;
 
@@ -7,7 +7,7 @@ namespace AvalWebBackend.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "ADMIN")]   
+[Authorize(Roles = "ADMIN")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -54,6 +54,13 @@ public class UsersController : ControllerBase
     {
         await _userService.DeleteUserAsync(id);
         _logger.LogInformation("User {UserId} deleted", id);
+        return NoContent();
+    }
+
+    [HttpDelete("{id}/service")]
+    public async Task<IActionResult> DeleteService(string id)
+    {
+        await _userService.DeleteUserServiceAsync(id);
         return NoContent();
     }
 }
