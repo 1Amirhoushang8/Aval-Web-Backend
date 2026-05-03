@@ -2,6 +2,7 @@
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.DTOs;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Text.Json;
 
 namespace AvalWebBackend.Controllers;
 
@@ -18,7 +19,23 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var data = await _authService.LoginAsync(request.Username, request.Password);
-        return Ok(data);
+
+        string token = ExtractToken(data);
+        string userJson = ExtractUserJson(data);
+
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Expires = DateTime.UtcNow.AddHours(2),
+            Path = "/"
+        };
+
+        Response.Cookies.Append("access_token", token, cookieOptions);
+
+        var userObject = JsonSerializer.Deserialize<object>(userJson);
+        return Ok(new { user = userObject });
     }
 
     [HttpPost("register")]
@@ -27,6 +44,21 @@ public class AuthController : ControllerBase
     {
         var userId = await _authService.RegisterAsync(request);
         return Ok(new { userId });
+    }
+
+    private static string ExtractToken(object loginResult)
+    {
+        var json = JsonSerializer.Serialize(loginResult);
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.GetProperty("token").GetString()!;
+    }
+
+    private static string ExtractUserJson(object loginResult)
+    {
+        var json = JsonSerializer.Serialize(loginResult);
+        using var doc = JsonDocument.Parse(json);
+        var userElement = doc.RootElement.GetProperty("user");
+        return userElement.GetRawText();
     }
 }
 

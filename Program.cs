@@ -39,17 +39,31 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
         ClockSkew = TimeSpan.Zero
     };
+
+    // ---------- Read JWT from HttpOnly cookie ----------
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Cookies["access_token"];
+            if (!string.IsNullOrEmpty(token))
+            {
+                context.Token = token;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 
-// ---------- Database (SQLite) ----------
+// ---------- Database  ----------
 Console.WriteLine("!!! DB PATH: " + Path.GetFullPath("Infrastructure/avaldb.db"));
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=Infrastructure/avaldb.db;Foreign Keys=True"));
 
-// ---------- Repositories (EF Core) ----------
+// ---------- Repositories ----------
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<ITicketRepository, EfTicketRepository>();
 builder.Services.AddScoped<IMessageRepository, EfMessageRepository>();
@@ -99,10 +113,12 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 
 builder.Services.AddControllers(options => options.Filters.Add<DomainExceptionFilter>());
 
+// ---------- CORS – must allow credentials for cookies ----------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
         policy.WithOrigins("http://localhost:5173", "http://localhost:5175")
+              .AllowCredentials()
               .AllowAnyMethod()
               .AllowAnyHeader());
 });
@@ -122,5 +138,3 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
-
-
