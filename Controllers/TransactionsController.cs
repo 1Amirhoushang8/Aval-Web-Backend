@@ -9,6 +9,7 @@ namespace AvalWebBackend.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionService _transactionService;
@@ -20,6 +21,10 @@ public class TransactionsController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "ADMIN")]
+
+
+    [IgnoreCsrf]
+
     public async Task<IActionResult> Add([FromBody] CreateTransactionDto dto)
     {
         var result = await _transactionService.AddAsync(dto);

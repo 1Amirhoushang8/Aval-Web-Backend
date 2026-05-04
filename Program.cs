@@ -10,6 +10,7 @@ using AvalWebBackend.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,7 +59,17 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 
-// ---------- Database  ----------
+// ---------- CSRF Protection ----------
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "XSRF-TOKEN";
+    options.Cookie.HttpOnly = false;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;   
+    options.Cookie.SameSite = SameSiteMode.Strict;
+});
+
+// ---------- Database ----------
 Console.WriteLine("!!! DB PATH: " + Path.GetFullPath("Infrastructure/avaldb.db"));
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=Infrastructure/avaldb.db;Foreign Keys=True"));
@@ -111,16 +122,21 @@ builder.Services.AddRateLimiter(options =>
 // ---------- Request Size Limit ----------
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 10 * 1024 * 1024);
 
-builder.Services.AddControllers(options => options.Filters.Add<DomainExceptionFilter>());
+// Global antiforgery validation 
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<DomainExceptionFilter>();
+    options.Filters.Add<ValidateCsrfFilter>();
+});
 
-// ---------- CORS – must allow credentials for cookies ----------
+// ---------- CORS ----------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
         policy.WithOrigins("http://localhost:5173", "http://localhost:5175")
               .AllowCredentials()
               .AllowAnyMethod()
-              .AllowAnyHeader());
+              .AllowAnyHeader());   
 });
 
 var app = builder.Build();

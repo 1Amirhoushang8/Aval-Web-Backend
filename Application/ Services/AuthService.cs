@@ -19,7 +19,7 @@ public class AuthService : IAuthService
 
     public async Task<object> LoginAsync(string username, string password)
     {
-        // Try admin first
+       
         var admin = await _userRepository.GetAdminByUsernameAsync(username);
         if (admin != null && admin.Password == password)
         {
@@ -34,7 +34,7 @@ public class AuthService : IAuthService
             return new { user = adminData, token };
         }
 
-        // Try user
+        
         var user = await _userRepository.GetByUsernameAsync(username);
         if (user != null && user.Password == password)
         {

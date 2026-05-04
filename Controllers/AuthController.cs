@@ -16,6 +16,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting("LoginPolicy")]
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var data = await _authService.LoginAsync(request.Username, request.Password);
@@ -40,6 +41,11 @@ public class AuthController : ControllerBase
 
     [HttpPost("register")]
     [EnableRateLimiting("RegisterPolicy")]
+
+
+    [IgnoreAntiforgeryToken]
+
+
     public async Task<IActionResult> Register([FromBody] SignupRequest request)
     {
         var userId = await _authService.RegisterAsync(request);

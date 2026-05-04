@@ -49,7 +49,7 @@ public class TicketService : ITicketService
             Date = GetCurrentPersianDate(),
             Time = GetCurrentTime(),
             Status = "pending",
-            File = request.File != null ? JsonSerializer.Serialize(request.File) : null   // serialise object to JSON string
+            File = request.File != null ? JsonSerializer.Serialize(request.File) : null   
         };
 
         await _ticketRepository.AddAsync(ticket);
@@ -71,7 +71,7 @@ public class TicketService : ITicketService
         ticket.AdminResponse = request.AdminResponse;
 
         if (request.File != null)
-            ticket.File = JsonSerializer.Serialize(request.File);   // serialise object to JSON string
+            ticket.File = JsonSerializer.Serialize(request.File);   
 
         await _ticketRepository.UpdateAsync(ticket);
         await _ticketRepository.SaveChangesAsync();
@@ -160,6 +160,6 @@ public class TicketService : ITicketService
         Time = ticket.Time,
         Status = ticket.Status,
         AdminResponse = ticket.AdminResponse,
-        File = ticket.File      // ticket.File is a string? and TicketDto.File is also a string? – fine
+        File = ticket.File      
     };
 }

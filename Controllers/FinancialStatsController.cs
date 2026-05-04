@@ -8,6 +8,7 @@ namespace AvalWebBackend.Controllers;
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "ADMIN")]
+
 public class FinancialStatsController : ControllerBase
 {
     private readonly IFinancialStatsService _statsService;

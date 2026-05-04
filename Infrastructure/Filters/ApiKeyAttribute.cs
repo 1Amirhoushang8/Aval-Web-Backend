@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace AvalWebBackend.Infrastructure.Filters;
@@ -12,20 +12,16 @@ public class ApiKeyAttribute : Attribute, IAsyncActionFilter
     {
         if (!context.HttpContext.Request.Headers.TryGetValue(ApiKeyHeaderName, out var extractedApiKey))
         {
-            context.Result = new UnauthorizedObjectResult(new { message = "API key is missing" });
+            context.Result = new UnauthorizedObjectResult(new { message = "کلید API ارسال نشده است." });
             return;
         }
 
         var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var configuredApiKey = configuration.GetValue<string>("ExternalApiKey");
 
-
-        Console.WriteLine($"DEBUG Expected: '{configuredApiKey}' Received: '{extractedApiKey}'");
-
-
         if (string.IsNullOrEmpty(configuredApiKey) || !configuredApiKey.Equals(extractedApiKey))
         {
-            context.Result = new UnauthorizedObjectResult(new { message = "Invalid API key" });
+            context.Result = new UnauthorizedObjectResult(new { message = "کلید API نامعتبر است." });
             return;
         }
 

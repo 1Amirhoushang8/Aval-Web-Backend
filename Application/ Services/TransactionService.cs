@@ -1,10 +1,10 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AvalWebBackend.Application.Common.Interfaces;
+using AvalWebBackend.Application.Common.Exceptions;
 using AvalWebBackend.Application.DTOs;
 using AvalWebBackend.Domain.Entities;
 using AvalWebBackend.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace AvalWebBackend.Application.Services;
 
@@ -26,6 +26,8 @@ public class TransactionService : ITransactionService
 
     public async Task<TransactionDto> AddAsync(CreateTransactionDto dto)
     {
+        ValidateDto(dto);
+
         var tx = MapToEntity(dto);
 
         using var dbTransaction = await _context.Database.BeginTransactionAsync();
@@ -43,32 +45,40 @@ public class TransactionService : ITransactionService
             await dbTransaction.CommitAsync();
             return MapToDto(tx);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not BusinessRuleException)
         {
-            _logger.LogError(ex, "Failed to add transaction");
+            _logger.LogError(ex, "AddAsync failed for transaction {Id}", tx.Id);
             await dbTransaction.RollbackAsync();
-            throw;
+            throw new BusinessRuleException("خطا در ثبت تراکنش. لطفاً دوباره تلاش کنید.");
         }
     }
 
     public async Task<List<TransactionDto>> AddBatchAsync(IEnumerable<CreateTransactionDto> dtos)
     {
+        var dtoList = dtos.ToList();
+        foreach (var dto in dtoList)
+            ValidateDto(dto);
+
         var results = new List<TransactionDto>();
 
         using var dbTransaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            var firstDto = dtos.FirstOrDefault();
+            var firstDto = dtoList.FirstOrDefault();
             if (firstDto != null && TryParsePersianDate(firstDto.TransactionDate, out var firstTxDate))
                 await _cacheRepo.ArchiveAndResetIfNewPeriodAsync(firstTxDate);
 
-            foreach (var dto in dtos)
+            foreach (var dto in dtoList)
             {
                 if (!string.IsNullOrEmpty(dto.IdempotencyKey))
                 {
                     var exists = await _context.Transactions
                         .AnyAsync(t => t.IdempotencyKey == dto.IdempotencyKey);
-                    if (exists) continue;
+                    if (exists)
+                    {
+                        _logger.LogInformation("Idempotency key '{Key}' already processed, skipping.", dto.IdempotencyKey);
+                        continue;
+                    }
                 }
 
                 var tx = MapToEntity(dto);
@@ -80,22 +90,41 @@ public class TransactionService : ITransactionService
 
             await _context.SaveChangesAsync();
             await dbTransaction.CommitAsync();
+            return results;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not BusinessRuleException)
         {
-            _logger.LogError(ex, "Batch transaction failed");
+            _logger.LogError(ex, "AddBatchAsync batch failed");
             await dbTransaction.RollbackAsync();
-            throw;
+            throw new BusinessRuleException("خطا در ثبت دسته‌ای تراکنش‌ها. لطفاً دوباره تلاش کنید.");
         }
-
-        return results;
     }
 
+    // ---------- Validation ----------
+    private static void ValidateDto(CreateTransactionDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Type))
+            throw new BusinessRuleException("نوع تراکنش الزامی است.");
+
+        if (dto.Type != "request" && dto.Type != "payment")
+            throw new BusinessRuleException("نوع تراکنش باید 'request' یا 'payment' باشد.");
+
+        if (dto.Amount <= 0)
+            throw new BusinessRuleException("مبلغ تراکنش باید بیشتر از صفر باشد.");
+
+        if (string.IsNullOrWhiteSpace(dto.TransactionDate))
+            throw new BusinessRuleException("تاریخ تراکنش الزامی است.");
+
+        if (!TryParsePersianDate(dto.TransactionDate, out _))
+            throw new BusinessRuleException("فرمت تاریخ باید yyyy-MM-dd باشد و یک تاریخ معتبر شمسی وارد کنید.");
+    }
+
+    // ---------- Cache update ----------
     private void UpdateCaches(Transaction tx)
     {
         if (!TryParsePersianDate(tx.TransactionDate, out var txDate))
         {
-            _logger.LogWarning("Invalid transaction date: {Date}", tx.TransactionDate);
+            _logger.LogWarning("Invalid transaction date skipped for caching: {Date}", tx.TransactionDate);
             return;
         }
 
@@ -104,6 +133,7 @@ public class TransactionService : ITransactionService
         _cacheRepo.UpsertMonthlyCache(tx, txDate);
     }
 
+    // ---------- Mapping ----------
     private static Transaction MapToEntity(CreateTransactionDto dto) => new()
     {
         Id = Guid.NewGuid().ToString(),
@@ -125,6 +155,7 @@ public class TransactionService : ITransactionService
         CreatedAt = tx.CreatedAt
     };
 
+    // ---------- Date helpers ----------
     private static bool TryParsePersianDate(string persianDate, out DateTime result)
     {
         result = default;

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
@@ -18,20 +19,63 @@ public class RequestLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-
-        
-
         var stopwatch = Stopwatch.StartNew();
 
         
-        _logger.LogInformation("→ {Method} {Path} started", context.Request.Method, context.Request.Path);
+        var remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var userId = context.User?.Identity?.IsAuthenticated == true
+            ? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            : "anonymous";
 
-        await _next(context);
+        _logger.LogInformation(
+            "→ {Method} {Path} started | IP:{IP} User:{User}",
+            context.Request.Method,
+            context.Request.Path,
+            remoteIp,
+            userId);
 
-        stopwatch.Stop();
+        try
+        {
+            await _next(context);
+        }
+        finally
+        {
+            stopwatch.Stop();
 
-        
-        _logger.LogInformation("← {Method} {Path} responded {StatusCode} in {Elapsed}ms",
-            context.Request.Method, context.Request.Path, context.Response.StatusCode, stopwatch.ElapsedMilliseconds);
+            var statusCode = context.Response.StatusCode;
+            var elapsed = stopwatch.ElapsedMilliseconds;
+
+            if (statusCode >= 500)
+            {
+                _logger.LogError(
+                    "← {Method} {Path} responded {StatusCode} in {Elapsed}ms | IP:{IP} User:{User}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    statusCode,
+                    elapsed,
+                    remoteIp,
+                    userId);
+            }
+            else if (statusCode >= 400)
+            {
+                _logger.LogWarning(
+                    "← {Method} {Path} responded {StatusCode} in {Elapsed}ms | IP:{IP} User:{User}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    statusCode,
+                    elapsed,
+                    remoteIp,
+                    userId);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "← {Method} {Path} responded {StatusCode} in {Elapsed}ms",
+                    context.Request.Method,
+                    context.Request.Path,
+                    statusCode,
+                    elapsed);
+            }
+        }
     }
 }

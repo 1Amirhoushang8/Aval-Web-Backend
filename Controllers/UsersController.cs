@@ -2,12 +2,14 @@
 using Microsoft.AspNetCore.Authorization;
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.DTOs;
+using AvalWebBackend.Infrastructure.Filters;
 
 namespace AvalWebBackend.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "ADMIN")]
+
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -34,6 +36,8 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
+
+    [IgnoreCsrf]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
     {
         var data = await _userService.CreateUserAsync(request);
@@ -50,6 +54,8 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+
+    [IgnoreCsrf]
     public async Task<IActionResult> Delete(string id)
     {
         await _userService.DeleteUserAsync(id);
@@ -58,6 +64,8 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id}/service")]
+
+    [IgnoreCsrf]
     public async Task<IActionResult> DeleteService(string id)
     {
         await _userService.DeleteUserServiceAsync(id);
