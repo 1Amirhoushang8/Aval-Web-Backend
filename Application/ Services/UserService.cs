@@ -82,7 +82,7 @@ public class UserService : IUserService
         return MapToDto(user);
     }
 
-    // Original method – delete the whole user (used on the user‑list page)
+    
     public async Task DeleteUserAsync(string id)
     {
         var user = await _userRepository.GetUserByIdAsync(id);
@@ -93,14 +93,14 @@ public class UserService : IUserService
         await _userRepository.SaveChangesAsync();
     }
 
-    // New method – only clear service/invoice fields (used on the accounting page)
+    
     public async Task DeleteUserServiceAsync(string id)
     {
         var user = await _userRepository.GetUserByIdAsync(id);
         if (user == null)
             throw new NotFoundException("کاربر", id);
 
-        // Clear all service / invoice fields
+        
         user.Service = null;
         user.Price = null;
         user.Status = "درحال-انجام";
