@@ -34,7 +34,7 @@ public class GlobalExceptionMiddleware
                 "Development",
                 StringComparison.OrdinalIgnoreCase);
 
-            // Both branches produce the same anonymous type: { message, stackTrace }
+            
             var response = isDevelopment
                 ? new
                 {

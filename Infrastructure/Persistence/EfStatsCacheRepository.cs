@@ -21,7 +21,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
         _logger = logger;
     }
 
-    // ---------- Read methods ----------
+    
     public async Task<List<DailyStatsCache>> GetDailyStatsAsync() =>
         await _context.DailyStatsCache.ToListAsync();
     public async Task<List<WeeklyStatsCache>> GetWeeklyStatsAsync() =>
@@ -29,7 +29,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
     public async Task<List<MonthlyStatsCache>> GetMonthlyStatsAsync() =>
         await _context.MonthlyStatsCache.OrderBy(m => m.MonthIndex).ToListAsync();
 
-    // ---------- Upsert daily  ----------
+    
     public void UpsertDailyCache(Transaction transaction, DateTime txDate)
     {
         int dayIndex = PersianDateHelper.GetPersianDayIndex(txDate);
@@ -69,7 +69,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
         var startOfWeek = PersianDateHelper.GetStartOfPersianWeek(txDate);
         string currentWeekStartStr = ToPersianDateString(startOfWeek);
 
-        // ---- Daily / Weekly reset ----
+        
         bool weekAlreadyExists = await _context.DailyStatsCache
             .AnyAsync(d => d.DayIndex == 0 && d.Date == currentWeekStartStr);
 
@@ -143,7 +143,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
             });
         }
 
-        // ---- Monthly reset ----
+        
         int year = pc.GetYear(txDate);
         int month = pc.GetMonth(txDate);  
         bool monthExists = await _context.MonthlyStatsCache
@@ -185,7 +185,7 @@ public class EfStatsCacheRepository : IStatsCacheRepository
         await _context.SaveChangesAsync();
     }
 
-    // ---------- Private helpers ----------
+    
 
     
     private void UpdateWeeklyForDate(DateTime txDate)

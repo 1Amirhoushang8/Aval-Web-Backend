@@ -15,13 +15,13 @@ using AvalWebBackend.Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------- JWT Settings ----------
+
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
 
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
-// ---------- Authentication & Authorization ----------
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -56,24 +56,24 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 
-// ---------- Antiforgery (FIXED) ----------
+
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.Cookie.Name = "XSRF-TOKEN";
-    options.Cookie.HttpOnly = false;   // Must be readable by JavaScript on the frontend
+    options.Cookie.HttpOnly = false;   
 
-    // SameSite=None + Secure required for cross-origin requests
+    
     options.Cookie.SameSite = SameSiteMode.None;
-    // Your locally running API uses HTTPS redirection, so Secure is valid
+    
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
-// ---------- Database  ----------
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=Infrastructure/avaldb.db;Foreign Keys=True"));
 
-// ---------- Repositories ----------
+
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<ITicketRepository, EfTicketRepository>();
 builder.Services.AddScoped<IMessageRepository, EfMessageRepository>();
@@ -81,7 +81,7 @@ builder.Services.AddScoped<IStatsCacheRepository, EfStatsCacheRepository>();
 builder.Services.AddScoped<IServiceRepository, EfServiceRepository>();
 builder.Services.AddScoped<ITransactionRepository, EfTransactionRepository>();
 
-// ---------- Application Services ----------
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
@@ -90,7 +90,7 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IFinancialStatsService, FinancialStatsService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 
-// ---------- Rate Limiting ----------
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -127,16 +127,16 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// ---------- Request Size Limit ----------
+
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 10 * 1024 * 1024);
 
-// ---------- Controllers & Filters ----------
+
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<DomainExceptionFilter>();
 });
 
-// ---------- CORS ----------
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
@@ -148,7 +148,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// ---------- Middleware Pipeline ----------
+
 app.UseRouting();
 app.UseCors("AllowReact");
 app.UseRateLimiter();

@@ -12,7 +12,7 @@ public class JsonUserRepository : IUserRepository
         _dataService = dataService;
     }
 
-    // ------------------- helper reads -------------------
+    
     private async Task<List<User>> GetUsersAsync()
     {
         var db = await _dataService.ReadAsync();
@@ -25,7 +25,7 @@ public class JsonUserRepository : IUserRepository
         return db.Admins ?? new List<Admin>();
     }
 
-    // ------------------- auth / existence -------------------
+    
     public async Task<User?> GetByUsernameAsync(string username)
     {
         var users = await GetUsersAsync();
@@ -62,7 +62,7 @@ public class JsonUserRepository : IUserRepository
         return admins.Any(a => a.Id == adminId);
     }
 
-    // ------------------- CRUD for UserService -------------------
+    
     public async Task<List<User>> GetAllUsersAsync()
     {
         return await GetUsersAsync();

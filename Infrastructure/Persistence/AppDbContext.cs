@@ -24,7 +24,7 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // ---------- Admin ----------
+       
         modelBuilder.Entity<Admin>(e =>
         {
             e.ToTable("Admins");
@@ -33,7 +33,7 @@ public class AppDbContext : DbContext
             e.Property(a => a.Password).IsRequired();
         });
 
-        // ---------- User (no more old service columns) ----------
+        
         modelBuilder.Entity<User>(e =>
         {
             e.ToTable("Users");
@@ -46,7 +46,7 @@ public class AppDbContext : DbContext
             e.Property(u => u.RoleKey).HasDefaultValue("USER");
         });
 
-        // ---------- Ticket ----------
+        
         modelBuilder.Entity<Ticket>(e =>
         {
             e.ToTable("Tickets");
@@ -60,7 +60,7 @@ public class AppDbContext : DbContext
             e.Property(t => t.File).HasColumnType("TEXT");
         });
 
-        // ---------- Message ----------
+        
         modelBuilder.Entity<Message>(e =>
         {
             e.ToTable("Messages");
@@ -74,7 +74,7 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // ---------- Transaction ----------
+        
         modelBuilder.Entity<Transaction>(e =>
         {
             e.ToTable("Transactions");
@@ -85,7 +85,7 @@ public class AppDbContext : DbContext
             e.HasIndex(t => t.TransactionDate).HasDatabaseName("idx_transactions_date");
         });
 
-        // ---------- Service ----------
+        
         modelBuilder.Entity<Service>(e =>
         {
             e.ToTable("Services");
@@ -100,7 +100,7 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // ---------- Stats Cache tables ----------
+        
         modelBuilder.Entity<DailyStatsCache>().ToTable("DailyStatsCache").HasKey(d => d.Id);
         modelBuilder.Entity<WeeklyStatsCache>().ToTable("WeeklyStatsCache").HasKey(w => w.Id);
         modelBuilder.Entity<MonthlyStatsCache>().ToTable("MonthlyStatsCache").HasKey(m => m.Id);

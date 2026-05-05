@@ -16,7 +16,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting("LoginPolicy")]
-    [IgnoreAntiforgeryToken]    // login is exempt from CSRF
+    [IgnoreAntiforgeryToken]    
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var data = await _authService.LoginAsync(request.Username, request.Password);
@@ -28,7 +28,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.None,   // cross‑origin
+            SameSite = SameSiteMode.None,   
             Expires = DateTime.UtcNow.AddHours(24)
         });
 

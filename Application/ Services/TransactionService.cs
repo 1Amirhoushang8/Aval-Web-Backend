@@ -100,7 +100,7 @@ public class TransactionService : ITransactionService
         }
     }
 
-    // ---------- Validation ----------
+    
     private static void ValidateDto(CreateTransactionDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Type))
@@ -119,7 +119,7 @@ public class TransactionService : ITransactionService
             throw new BusinessRuleException("فرمت تاریخ باید yyyy-MM-dd باشد و یک تاریخ معتبر شمسی وارد کنید.");
     }
 
-    // ---------- Cache update ----------
+    
     private void UpdateCaches(Transaction tx)
     {
         if (!TryParsePersianDate(tx.TransactionDate, out var txDate))
@@ -133,7 +133,7 @@ public class TransactionService : ITransactionService
         _cacheRepo.UpsertMonthlyCache(tx, txDate);
     }
 
-    // ---------- Mapping ----------
+    
     private static Transaction MapToEntity(CreateTransactionDto dto) => new()
     {
         Id = Guid.NewGuid().ToString(),
@@ -155,7 +155,7 @@ public class TransactionService : ITransactionService
         CreatedAt = tx.CreatedAt
     };
 
-    // ---------- Date helpers ----------
+    
     private static bool TryParsePersianDate(string persianDate, out DateTime result)
     {
         result = default;

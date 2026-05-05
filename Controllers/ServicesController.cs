@@ -9,7 +9,7 @@ namespace AvalWebBackend.Controllers;
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "ADMIN")]
-[ValidateCsrfToken]          // CSRF protection for all unsafe actions
+[ValidateCsrfToken]          
 public class ServicesController : ControllerBase
 {
     private readonly IInvoiceService _invoiceService;

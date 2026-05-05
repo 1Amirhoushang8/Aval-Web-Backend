@@ -4,9 +4,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace AvalWebBackend.Infrastructure.Filters;
 
-/// <summary>
-/// Validates antiforgery tokens for unsafe HTTP methods (POST, PUT, DELETE, PATCH).
-/// </summary>
+
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class ValidateCsrfTokenAttribute : Attribute, IActionFilter
 {

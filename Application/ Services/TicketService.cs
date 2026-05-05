@@ -95,7 +95,7 @@ public class TicketService : ITicketService
         if (string.IsNullOrEmpty(ticket?.File))
             throw new NotFoundException(nameof(Ticket), id);
 
-        // File is stored as a JSON string: {"name":"...","type":"...","data":"..."}
+        
         JsonDocument document;
         try
         {

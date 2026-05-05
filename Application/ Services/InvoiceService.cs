@@ -31,7 +31,7 @@ public class InvoiceService : IInvoiceService
 
     public async Task<ServiceDto> CreateServiceAsync(CreateServiceRequest request)
     {
-        // ✅ Use existing existence check
+        
         if (!await _userRepository.UserExistsByIdAsync(request.UserId))
             throw new NotFoundException("کاربر", request.UserId);
 
@@ -51,7 +51,7 @@ public class InvoiceService : IInvoiceService
         await _serviceRepository.AddAsync(service);
         await _serviceRepository.SaveChangesAsync();
 
-        // 🔁 Re‑fetch with User included so the DTO gets the full name
+        
         var savedService = await _serviceRepository.GetByIdAsync(service.Id);
         return MapToDto(savedService!);
     }

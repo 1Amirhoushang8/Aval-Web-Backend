@@ -26,7 +26,7 @@ public class UserService : IUserService
 
     public async Task<UserDto> CreateUserAsync(CreateUserRequest request)
     {
-        // Check duplicate username
+        
         if (await _userRepository.UsernameExistsAsync(request.Username))
             throw new BusinessRuleException("این نام کاربری قبلاً انتخاب شده است");
 

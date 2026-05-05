@@ -1,4 +1,4 @@
-﻿// File: Application/Services/MessageService.cs
+﻿
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.Common.Exceptions;
 using AvalWebBackend.Application.DTOs;
@@ -41,7 +41,7 @@ public class MessageService : IMessageService
         if (!isUser && !isAdmin)
             throw new BusinessRuleException("فرستنده نامعتبر است");
 
-        // Determine sender type
+        
         string senderType = isUser ? "USER" : "ADMIN";
 
         var message = new Message
@@ -57,22 +57,20 @@ public class MessageService : IMessageService
 
         await _messageRepository.AddAsync(message);
 
-        // Automatically update ticket status according to sender
+        
         var ticket = await _ticketRepository.GetByIdAsync(request.TicketId);
         if (ticket != null)
         {
             if (isUser)
-                ticket.Status = "pending";      // user reply reopens ticket
+                ticket.Status = "pending";      
             else if (isAdmin)
-                ticket.Status = "answered";     // admin reply marks as answered
+                ticket.Status = "answered";     
 
             await _ticketRepository.UpdateAsync(ticket);
         }
 
-        // Save both changes in one transaction (single SaveChanges call)
         await _messageRepository.SaveChangesAsync();
-        // ticket update is saved together with message if the repository uses a shared context
-        // (assuming both repos share the same DbContext)
+        
 
         return MapToDto(message);
     }

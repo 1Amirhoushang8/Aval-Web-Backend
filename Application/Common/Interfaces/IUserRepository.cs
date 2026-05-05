@@ -4,7 +4,7 @@ namespace AvalWebBackend.Application.Common.Interfaces;
 
 public interface IUserRepository
 {
-    // Auth
+    
     Task<User?> GetByUsernameAsync(string username);
     Task<Admin?> GetAdminByUsernameAsync(string username);
     Task<bool> UsernameExistsAsync(string username);
@@ -12,7 +12,7 @@ public interface IUserRepository
     Task<bool> UserExistsByIdAsync(string userId);
     Task<bool> AdminExistsByIdAsync(string adminId);
 
-    // CRUD
+    
     Task<List<User>> GetAllUsersAsync();
     Task<User?> GetUserByIdAsync(string id);
     Task AddAsync(User user);
