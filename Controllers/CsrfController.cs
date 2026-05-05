@@ -17,7 +17,6 @@ public class CsrfController : ControllerBase
     [HttpGet]
     public IActionResult GetToken()
     {
-        
         var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
         return Ok(new { token = tokens.RequestToken });
     }

@@ -63,12 +63,5 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpDelete("{id}/service")]
-
-    [IgnoreCsrf]
-    public async Task<IActionResult> DeleteService(string id)
-    {
-        await _userService.DeleteUserServiceAsync(id);
-        return NoContent();
-    }
+    
 }

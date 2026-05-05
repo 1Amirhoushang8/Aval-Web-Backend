@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿
+using Microsoft.EntityFrameworkCore;
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Domain.Entities;
 
@@ -18,8 +19,11 @@ public class EfMessageRepository : IMessageRepository
     public async Task AddAsync(Message message) =>
         await _context.Messages.AddAsync(message);
 
-    public async Task UpdateAsync(Message message) =>
+    public Task UpdateAsync(Message message)   
+    {
         _context.Messages.Update(message);
+        return Task.CompletedTask;
+    }
 
     public async Task SaveChangesAsync() =>
         await _context.SaveChangesAsync();

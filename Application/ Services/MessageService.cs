@@ -1,4 +1,5 @@
-﻿using AvalWebBackend.Application.Common.Interfaces;
+﻿// File: Application/Services/MessageService.cs
+using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.Common.Exceptions;
 using AvalWebBackend.Application.DTOs;
 using AvalWebBackend.Domain.Entities;
@@ -40,18 +41,38 @@ public class MessageService : IMessageService
         if (!isUser && !isAdmin)
             throw new BusinessRuleException("فرستنده نامعتبر است");
 
+        // Determine sender type
+        string senderType = isUser ? "USER" : "ADMIN";
+
         var message = new Message
         {
             Id = Guid.NewGuid().ToString()[..8],
             TicketId = request.TicketId,
             SenderId = request.SenderId,
+            SenderType = senderType,
             MessageText = request.MessageText,
             Timestamp = DateTime.Now.ToString("yyyy/MM/dd HH:mm"),
             IsRead = false
         };
 
         await _messageRepository.AddAsync(message);
+
+        // Automatically update ticket status according to sender
+        var ticket = await _ticketRepository.GetByIdAsync(request.TicketId);
+        if (ticket != null)
+        {
+            if (isUser)
+                ticket.Status = "pending";      // user reply reopens ticket
+            else if (isAdmin)
+                ticket.Status = "answered";     // admin reply marks as answered
+
+            await _ticketRepository.UpdateAsync(ticket);
+        }
+
+        // Save both changes in one transaction (single SaveChanges call)
         await _messageRepository.SaveChangesAsync();
+        // ticket update is saved together with message if the repository uses a shared context
+        // (assuming both repos share the same DbContext)
 
         return MapToDto(message);
     }
@@ -104,7 +125,7 @@ public class MessageService : IMessageService
         Id = message.Id,
         TicketId = message.TicketId,
         SenderId = message.SenderId,
-        MessageText = message.MessageText,
+        MessageText = message.MessageText,   
         Timestamp = message.Timestamp,
         IsRead = message.IsRead
     };

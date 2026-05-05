@@ -16,7 +16,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting("LoginPolicy")]
-    [IgnoreAntiforgeryToken]
+    [IgnoreAntiforgeryToken]    // login is exempt from CSRF
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var data = await _authService.LoginAsync(request.Username, request.Password);
@@ -24,16 +24,13 @@ public class AuthController : ControllerBase
         string token = ExtractToken(data);
         string userJson = ExtractUserJson(data);
 
-        var cookieOptions = new CookieOptions
+        Response.Cookies.Append("access_token", token, new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.None,
-            Expires = DateTime.UtcNow.AddHours(2),
-            Path = "/"
-        };
-
-        Response.Cookies.Append("access_token", token, cookieOptions);
+            SameSite = SameSiteMode.None,   // cross‑origin
+            Expires = DateTime.UtcNow.AddHours(24)
+        });
 
         var userObject = JsonSerializer.Deserialize<object>(userJson);
         return Ok(new { user = userObject });
@@ -41,11 +38,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("register")]
     [EnableRateLimiting("RegisterPolicy")]
-
-
     [IgnoreAntiforgeryToken]
-
-
     public async Task<IActionResult> Register([FromBody] SignupRequest request)
     {
         var userId = await _authService.RegisterAsync(request);

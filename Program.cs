@@ -1,5 +1,10 @@
-using System.Text;
+﻿using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.IdentityModel.Tokens;
 using AvalWebBackend.Infrastructure.Persistence;
 using AvalWebBackend.Application.Services;
 using AvalWebBackend.Application.Common.Interfaces;
@@ -7,10 +12,6 @@ using AvalWebBackend.Infrastructure.Filters;
 using AvalWebBackend.Infrastructure.Middleware;
 using AvalWebBackend.Infrastructure.Services;
 using AvalWebBackend.Infrastructure.Settings;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +19,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
 
-// ---------- JWT Token Service ----------
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 // ---------- Authentication & Authorization ----------
@@ -41,16 +41,13 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 
-    // ---------- Read JWT from HttpOnly cookie ----------
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
             var token = context.Request.Cookies["access_token"];
             if (!string.IsNullOrEmpty(token))
-            {
                 context.Token = token;
-            }
             return Task.CompletedTask;
         }
     };
@@ -59,18 +56,20 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 
-// ---------- CSRF Protection ----------
+// ---------- Antiforgery (FIXED) ----------
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.Cookie.Name = "XSRF-TOKEN";
-    options.Cookie.HttpOnly = false;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;   
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.HttpOnly = false;   // Must be readable by JavaScript on the frontend
+
+    // SameSite=None + Secure required for cross-origin requests
+    options.Cookie.SameSite = SameSiteMode.None;
+    // Your locally running API uses HTTPS redirection, so Secure is valid
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
-// ---------- Database ----------
-Console.WriteLine("!!! DB PATH: " + Path.GetFullPath("Infrastructure/avaldb.db"));
+// ---------- Database  ----------
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=Infrastructure/avaldb.db;Foreign Keys=True"));
 
@@ -79,6 +78,8 @@ builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<ITicketRepository, EfTicketRepository>();
 builder.Services.AddScoped<IMessageRepository, EfMessageRepository>();
 builder.Services.AddScoped<IStatsCacheRepository, EfStatsCacheRepository>();
+builder.Services.AddScoped<IServiceRepository, EfServiceRepository>();
+builder.Services.AddScoped<ITransactionRepository, EfTransactionRepository>();
 
 // ---------- Application Services ----------
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -87,6 +88,7 @@ builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IFinancialStatsService, FinancialStatsService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 
 // ---------- Rate Limiting ----------
 builder.Services.AddRateLimiter(options =>
@@ -99,22 +101,28 @@ builder.Services.AddRateLimiter(options =>
         var json = System.Text.Json.JsonSerializer.Serialize(new { message = "Too many requests. Please try again later." });
         await context.HttpContext.Response.WriteAsync(json, cancellationToken);
     };
+
     options.AddFixedWindowLimiter("LoginPolicy", config =>
     {
-        config.PermitLimit = 5; config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+        config.PermitLimit = 5;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
+
     options.AddFixedWindowLimiter("BatchPolicy", config =>
     {
-        config.PermitLimit = 10; config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+        config.PermitLimit = 10;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
+
     options.AddFixedWindowLimiter("RegisterPolicy", config =>
     {
-        config.PermitLimit = 3; config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+        config.PermitLimit = 3;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
 });
@@ -122,11 +130,10 @@ builder.Services.AddRateLimiter(options =>
 // ---------- Request Size Limit ----------
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 10 * 1024 * 1024);
 
-// Global antiforgery validation 
+// ---------- Controllers & Filters ----------
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<DomainExceptionFilter>();
-    options.Filters.Add<ValidateCsrfFilter>();
 });
 
 // ---------- CORS ----------
@@ -136,21 +143,26 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173", "http://localhost:5175")
               .AllowCredentials()
               .AllowAnyMethod()
-              .AllowAnyHeader());   
+              .AllowAnyHeader());
 });
 
 var app = builder.Build();
 
+// ---------- Middleware Pipeline ----------
 app.UseRouting();
 app.UseCors("AllowReact");
-app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment()) app.MapOpenApi();
+if (app.Environment.IsDevelopment())
+    app.MapOpenApi();
+
 app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
 app.Run();

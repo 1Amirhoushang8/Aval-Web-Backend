@@ -9,7 +9,7 @@ namespace AvalWebBackend.Application.Services;
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
-    private readonly IJwtTokenService _jwtTokenService;   
+    private readonly IJwtTokenService _jwtTokenService;
 
     public AuthService(IUserRepository userRepository, IJwtTokenService jwtTokenService)
     {
@@ -19,7 +19,6 @@ public class AuthService : IAuthService
 
     public async Task<object> LoginAsync(string username, string password)
     {
-       
         var admin = await _userRepository.GetAdminByUsernameAsync(username);
         if (admin != null && admin.Password == password)
         {
@@ -30,11 +29,10 @@ public class AuthService : IAuthService
                 fullName = admin.FullName,
                 roleKey = "ADMIN"
             };
-            var token = _jwtTokenService.GenerateToken(admin.Id, "ADMIN", admin.FullName);   
+            var token = _jwtTokenService.GenerateToken(admin.Id, "ADMIN", admin.FullName);
             return new { user = adminData, token };
         }
 
-        
         var user = await _userRepository.GetByUsernameAsync(username);
         if (user != null && user.Password == password)
         {
@@ -47,7 +45,7 @@ public class AuthService : IAuthService
                 phoneNumber = user.PhoneNumber,
                 serialNumber = user.SerialNumber
             };
-            var token = _jwtTokenService.GenerateToken(user.Id, userData.roleKey, user.FullName);   
+            var token = _jwtTokenService.GenerateToken(user.Id, userData.roleKey, user.FullName);
             return new { user = userData, token };
         }
 
@@ -56,7 +54,6 @@ public class AuthService : IAuthService
 
     public async Task<string> RegisterAsync(SignupRequest request)
     {
-        
         if (string.IsNullOrWhiteSpace(request.FullName) || request.FullName.Length < 4)
             throw new BusinessRuleException("نام و نام خانوادگی باید حداقل ۴ کاراکتر و به زبان فارسی باشد");
 
@@ -83,13 +80,7 @@ public class AuthService : IAuthService
             FullName = request.FullName,
             PhoneNumber = request.PhoneNumber,
             SerialNumber = new Random().Next(10000000, 99999999).ToString(),
-            Service = null!,
-            Price = null,
-            Status = "درحال-انجام",
-            PaymentType = "پرداخت-تکی",
-            RoleKey = "USER",
-            MonthlyPayment = null,
-            TotalMonths = null
+            RoleKey = "USER"
         };
 
         await _userRepository.AddAsync(newUser);

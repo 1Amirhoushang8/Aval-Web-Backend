@@ -1,12 +1,19 @@
-﻿namespace AvalWebBackend.Domain.Entities;
+﻿
+using System.ComponentModel.DataAnnotations.Schema;
 
-public class Message
+namespace AvalWebBackend.Domain.Entities
 {
-    public string Id { get; set; } = string.Empty;
-    public string TicketId { get; set; } = string.Empty;
-    public string SenderId { get; set; } = string.Empty;
-    public string SenderType { get; set; } = string.Empty;   
-    public string MessageText { get; set; } = string.Empty;  
-    public string Timestamp { get; set; } = string.Empty;
-    public bool IsRead { get; set; }
+    public class Message
+    {
+        public string Id { get; set; } = string.Empty;
+        public string TicketId { get; set; } = string.Empty;
+        public string SenderId { get; set; } = string.Empty;
+        public string SenderType { get; set; } = string.Empty;   
+
+        [Column("Text")]           
+        public string MessageText { get; set; } = string.Empty;
+
+        public string Timestamp { get; set; } = string.Empty;
+        public bool IsRead { get; set; }                         
+    }
 }

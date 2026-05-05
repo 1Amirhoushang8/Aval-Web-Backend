@@ -9,7 +9,7 @@ namespace AvalWebBackend.Controllers;
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "ADMIN,USER")]
-
+[ValidateCsrfToken]                    
 public class TicketsController : ControllerBase
 {
     private readonly ITicketService _ticketService;
@@ -34,11 +34,6 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost]
-
-
-    [ValidateAntiForgeryToken]
-
-
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<IActionResult> Create([FromBody] CreateTicketRequest request)
     {
@@ -47,11 +42,6 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-
-
-    [ValidateAntiForgeryToken]
-
-
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateTicketRequest request)
     {
@@ -60,8 +50,7 @@ public class TicketsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-
-    [IgnoreCsrf]
+    [IgnoreCsrf]                       
     public async Task<IActionResult> Delete(string id)
     {
         await _ticketService.DeleteTicketAsync(id);
