@@ -12,6 +12,7 @@ using AvalWebBackend.Infrastructure.Filters;
 using AvalWebBackend.Infrastructure.Middleware;
 using AvalWebBackend.Infrastructure.Services;
 using AvalWebBackend.Infrastructure.Settings;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,12 +62,9 @@ builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.Cookie.Name = "XSRF-TOKEN";
-    options.Cookie.HttpOnly = false;   
-
-    
-    options.Cookie.SameSite = SameSiteMode.None;
-    
+    options.Cookie.HttpOnly = false;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.None;
 });
 
 
@@ -98,7 +96,10 @@ builder.Services.AddRateLimiter(options =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/json";
-        var json = System.Text.Json.JsonSerializer.Serialize(new { message = "Too many requests. Please try again later." });
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            message = "تعداد درخواست‌ها بیش از حد مجاز است. لطفاً بعداً تلاش کنید."
+        });
         await context.HttpContext.Response.WriteAsync(json, cancellationToken);
     };
 
@@ -134,9 +135,24 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<DomainExceptionFilter>();
+})
+.ConfigureApiBehaviorOptions(options =>
+{
+    
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(e => e.Value?.Errors.Count > 0)
+            .SelectMany(e => e.Value!.Errors)
+            .Select(e => e.ErrorMessage)
+            .ToList();
+
+        var message = string.Join(" | ", errors);
+        return new BadRequestObjectResult(new { message });
+    };
 });
 
-
+// ---------- CORS ----------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>

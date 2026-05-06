@@ -54,6 +54,32 @@ public class AuthService : IAuthService
 
     public async Task<string> RegisterAsync(SignupRequest request)
     {
+        // 1. Normalize Persian digits → English
+        request.PhoneNumber = NormalizePersianDigits(request.PhoneNumber);
+
+        // 2. Strip all non‑digit characters (spaces, +, -, etc.)
+        string digitsOnly = Regex.Replace(request.PhoneNumber, @"\D", "");
+
+        // 3. Extract the 10‑digit mobile number
+        string mobile;
+        if (digitsOnly.StartsWith("98"))
+            mobile = digitsOnly.Length >= 12 ? digitsOnly.Substring(2, 10) : digitsOnly; // +98 9123456789
+        else if (digitsOnly.StartsWith("0"))
+            mobile = digitsOnly.Length >= 11 ? digitsOnly.Substring(1) : digitsOnly;     // 09123456789
+        else
+            mobile = digitsOnly; // assume it's 9xx...
+
+        // Take the last 10 digits if longer (safety)
+        if (mobile.Length > 10)
+            mobile = mobile[^10..];
+
+        // 4. Validate the final 10‑digit number (must start with 9)
+        if (!Regex.IsMatch(mobile, @"^9\d{9}$"))
+            throw new BusinessRuleException("شماره تماس نامعتبر است");
+
+        request.PhoneNumber = mobile;   // store clean number
+
+        // --- rest of validation unchanged ---
         if (string.IsNullOrWhiteSpace(request.FullName) || request.FullName.Length < 4)
             throw new BusinessRuleException("نام و نام خانوادگی باید حداقل ۴ کاراکتر و به زبان فارسی باشد");
 
@@ -78,7 +104,7 @@ public class AuthService : IAuthService
             Username = request.Username,
             Password = request.Password,
             FullName = request.FullName,
-            PhoneNumber = request.PhoneNumber,
+            PhoneNumber = mobile,   
             SerialNumber = new Random().Next(10000000, 99999999).ToString(),
             RoleKey = "USER"
         };
@@ -87,5 +113,15 @@ public class AuthService : IAuthService
         await _userRepository.SaveChangesAsync();
 
         return newUser.Id;
+    }
+
+    private static string NormalizePersianDigits(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        var persianDigits = new[] { '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' };
+        var englishDigits = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+        for (int i = 0; i < 10; i++)
+            input = input.Replace(persianDigits[i], englishDigits[i]);
+        return input;
     }
 }

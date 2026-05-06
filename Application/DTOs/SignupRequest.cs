@@ -18,6 +18,6 @@ public class SignupRequest
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "شماره تماس الزامی است")]
-    [RegularExpression(@"^0?9\d{9}$", ErrorMessage = "شماره تماس نامعتبر است")]
+    
     public string PhoneNumber { get; set; } = string.Empty;
 }
