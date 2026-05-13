@@ -9,7 +9,7 @@ namespace AvalWebBackend.Controllers;
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "ADMIN,USER")]
-[ValidateCsrfToken]                    
+                   
 public class TicketsController : ControllerBase
 {
     private readonly ITicketService _ticketService;

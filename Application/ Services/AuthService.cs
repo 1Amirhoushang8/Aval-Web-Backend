@@ -54,32 +54,32 @@ public class AuthService : IAuthService
 
     public async Task<string> RegisterAsync(SignupRequest request)
     {
-        // 1. Normalize Persian digits → English
+        
         request.PhoneNumber = NormalizePersianDigits(request.PhoneNumber);
 
-        // 2. Strip all non‑digit characters (spaces, +, -, etc.)
+        
         string digitsOnly = Regex.Replace(request.PhoneNumber, @"\D", "");
 
-        // 3. Extract the 10‑digit mobile number
+        
         string mobile;
         if (digitsOnly.StartsWith("98"))
-            mobile = digitsOnly.Length >= 12 ? digitsOnly.Substring(2, 10) : digitsOnly; // +98 9123456789
+            mobile = digitsOnly.Length >= 12 ? digitsOnly.Substring(2, 10) : digitsOnly; 
         else if (digitsOnly.StartsWith("0"))
-            mobile = digitsOnly.Length >= 11 ? digitsOnly.Substring(1) : digitsOnly;     // 09123456789
+            mobile = digitsOnly.Length >= 11 ? digitsOnly.Substring(1) : digitsOnly;     
         else
-            mobile = digitsOnly; // assume it's 9xx...
+            mobile = digitsOnly; 
 
-        // Take the last 10 digits if longer (safety)
+        
         if (mobile.Length > 10)
             mobile = mobile[^10..];
 
-        // 4. Validate the final 10‑digit number (must start with 9)
+        
         if (!Regex.IsMatch(mobile, @"^9\d{9}$"))
             throw new BusinessRuleException("شماره تماس نامعتبر است");
 
-        request.PhoneNumber = mobile;   // store clean number
+        request.PhoneNumber = mobile;   
 
-        // --- rest of validation unchanged ---
+        
         if (string.IsNullOrWhiteSpace(request.FullName) || request.FullName.Length < 4)
             throw new BusinessRuleException("نام و نام خانوادگی باید حداقل ۴ کاراکتر و به زبان فارسی باشد");
 

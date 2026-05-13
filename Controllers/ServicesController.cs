@@ -2,14 +2,12 @@
 using Microsoft.AspNetCore.Authorization;
 using AvalWebBackend.Application.Common.Interfaces;
 using AvalWebBackend.Application.DTOs;
-using AvalWebBackend.Infrastructure.Filters;
 
 namespace AvalWebBackend.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "ADMIN")]
-[ValidateCsrfToken]          
 public class ServicesController : ControllerBase
 {
     private readonly IInvoiceService _invoiceService;

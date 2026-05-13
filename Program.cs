@@ -135,10 +135,11 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<DomainExceptionFilter>();
+    
 })
 .ConfigureApiBehaviorOptions(options =>
 {
-    
+
     options.InvalidModelStateResponseFactory = context =>
     {
         var errors = context.ModelState
@@ -152,11 +153,16 @@ builder.Services.AddControllers(options =>
     };
 });
 
-// ---------- CORS ----------
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:5175")
+        policy.WithOrigins(
+              "http://localhost:5173",
+              "http://localhost:5175",
+              "https://localhost:5173",   // new HTTPS origin
+              "https://localhost:5175"    // new HTTPS origin
+        )
               .AllowCredentials()
               .AllowAnyMethod()
               .AllowAnyHeader());

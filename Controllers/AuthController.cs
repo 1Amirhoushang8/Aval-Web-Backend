@@ -16,7 +16,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting("LoginPolicy")]
-    [IgnoreAntiforgeryToken]    
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var data = await _authService.LoginAsync(request.Username, request.Password);
@@ -24,12 +24,14 @@ public class AuthController : ControllerBase
         string token = ExtractToken(data);
         string userJson = ExtractUserJson(data);
 
+        // Set the JWT cookie only (no CSRF cookie here)
         Response.Cookies.Append("access_token", token, new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.None,   
-            Expires = DateTime.UtcNow.AddHours(24)
+            SameSite = SameSiteMode.None,
+            Expires = DateTime.UtcNow.AddHours(24),
+            Path = "/"
         });
 
         var userObject = JsonSerializer.Deserialize<object>(userJson);
